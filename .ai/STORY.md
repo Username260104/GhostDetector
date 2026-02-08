@@ -35,3 +35,8 @@
     - **Edge Penalty**: 화면 가장자리로 갈수록 점수 대폭 삭감 (중앙 지향).
     - **Aspect Ratio**: 가로세로 비율이 1:2 ~ 2:1을 벗어나면 클러스터 확장 중단 (기둥/틈새 방지).
     - **Boredom System**: 한 곳에 오래 머물면 점수가 깎여 다른 곳으로 이동 유도 (Stickiness 상쇄).
+- **[리팩토링]** 알고리즘 전면 교체 (Detector v3)
+    - **Grid Scoring**: 화면 전체 픽셀 스캔 -> 32px 그리드 단위 다운샘플링 분석.
+    - **점수 공식**: `(Variance * 1.5) - (Edge * 3.0)` -> 텍스처는 쫓고 선은 피함.
+    - **파이프라인**: Scoring -> Thresholding -> CCL(Flood Fill) -> Bounding Box.
+    - **설정 분리**: `Config.js` 도입으로 파라미터(가중치, 임계값, 크기 제한 등) 중앙 관리.

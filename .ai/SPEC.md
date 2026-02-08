@@ -6,17 +6,19 @@
 - **주요 기능**:
     - **전체 화면 카메라**: 비율 유지(`cover`) 및 화면 꽉 채움.
     - **광각 카메라 지원**: 'wide', 'ultra' 등의 라벨을 가진 카메라 우선 활성화.
-    - **노이즈 탐지 (Algorithm v2)**:
-        - **Target**: 평평하고 균일한 영역 (Low Gradient) 선호 (**FlatnessWeight: 2.0**).
-        - **Scoring**: `MaxGradient - CurrentGradient` + **Edge Penalty** (가장자리 회피) + **Boredom** (지루함).
-        - **Stability**: `Low Pass Filter (LPF)`로 위치 보간.
-        - **Stickiness**: `Spatial Memory`로 이전 위치 유지 (과도한 고정 방지, **StickinessWeight: 20.0**).
-        - **ID Renewal**: 위치가 급격히 변하거나(**30%**) 지루함이 극에 달하면 새로운 ID 부여/이동.
-        - **Constraints**:
-            - **Max Size**: 화면의 15%.
-            - **Aspect Ratio**: 1:2 ~ 2:1 제한 (길쭉한 형태 방지).
-        - **Clustering**: Flood Fill + Aspect Ratio Check.
-        - **State Machine**: Scanning <-> Locked.
+    - **노이즈 탐지 (Algorithm v3)**:
+        - **1단계: Grid Scoring**:
+            - 32px 단위 그리드 분석.
+            - **Variance (표준편차)**: 자글거림(노이즈)이 심할수록 가산점 (+).
+            - **EdgeStrength**: 뚜렷한 경계선이 있으면 대폭 감점 (-).
+            - `Score = (Variance * 1.5) - (Edge * 3.0)`
+        - **2단계: Binary Thresholding**:
+            - 임계값(15.0) 이상인 셀만 'Active'로 분류.
+        - **3단계: CCL (Connected Component Labeling)**:
+            - Flood Fill 알고리즘으로 인접한 Active Cell 병합.
+        - **4단계: Bounding Box Fitting**:
+            - 병합된 덩어리의 Min/Max 좌표로 박스 생성.
+            - 크기(4~15%) 및 비율(0.2~5.0) 필터링.
     - **시각화 (Snap & Invert)**:
         - 감지된 위치로 부드럽게 이동 (LPF).
         - **CSS `mix-blend-mode: difference`**를 이용한 강력한 자동 색상 반전.
