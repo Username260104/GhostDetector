@@ -1,8 +1,8 @@
 export default class Detector {
     constructor() {
-        // 분석 해상도 (그리드 크기)
-        this.gridW = 32;
-        this.gridH = 24;
+        // 분석 해상도 (그리드 크기) - 해상도 2배 증가
+        this.gridW = 64;
+        this.gridH = 48;
 
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
@@ -18,19 +18,19 @@ export default class Detector {
         // 파라미터 튜닝
         this.params = {
             // Gradient(변화량) 기준
-            minGradient: 5,        // 이보다 낮으면 너무 매끈함 (무시)
-            maxGradient: 80,       // 이보다 높으면 엣지로 간주 (감점 또는 무시)
+            minGradient: 2,        // 더 낮은 변화량도 허용
+            maxGradient: 100,      // 엣지 기준 완화
 
             // 점수 가중치
-            baseScore: 10.0,       // 기본 점수 (일단 잡히게 하기 위함)
-            attractionWeight: 1.0, // Gradient 점수 가중치
-            penaltyWeight: 2.0,    // 너무 강한 엣지에 대한 패널티
-            noiseWeight: 5.0,      // 랜덤 노이즈 가중치
+            baseScore: 20.0,       // 기본 점수 상향 (무조건 잡히게)
+            attractionWeight: 1.5, // 텍스처 가중치 상향
+            penaltyWeight: 2.0,    // 패널티 유지
+            noiseWeight: 10.0,     // 노이즈 영향력 증대 (탐색 강화)
 
             // 상태 임계값
-            lockThreshold: 15.0,   // 이 점수를 넘으면 Locked 후보 (낮춤)
-            clusterThreshold: 10.0,// 클러스터 포함 기준 점수 (낮춤)
-            hysteresis: 1.1        // 낮춤
+            lockThreshold: 10.0,   // 진입 장벽 낮춤
+            clusterThreshold: 5.0, // 덩어리 형성 기준 대폭 낮춤
+            hysteresis: 1.05       // 민감하게 반응
         };
     }
 
