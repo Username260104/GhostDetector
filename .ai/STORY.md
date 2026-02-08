@@ -9,3 +9,11 @@
     - 탐지: 이미지 분산(Variance) 기반 노이즈 탐지 알고리즘 구현 (`Detector.js`)
     - 렌더링: `mix-blend-mode: difference`를 활용한 자동 색상 반전 UI (`Renderer.js`, `style.css`)
     - 구조: 모듈형 설계 및 메인 루프 구현 (`Main.js`)
+- **[Git]** 리포지토리 동기화
+    - 원격 저장소(`origin`) 연결 및 강제 푸시 완료 (초기화)
+- **[리팩토링]** 탐지 알고리즘 고도화
+    - Random Sampling 제거 -> Grid Scan 도입
+    - Vector Field & Scoring 구현: Repulsion(Edge 회피), Attraction(Texture 유인), Noise(무작위성)
+    - State Machine 도입: Scanning vs Locked, Hysteresis로 타겟 안정성 확보
+    - Clustering: Flood Fill 알고리즘으로 노이즈 영역의 Bounding Box 계산
+    - 시각화: 선 두께 0.5px, 중앙 태그 배치, 적응형 대비(Difference Blend)

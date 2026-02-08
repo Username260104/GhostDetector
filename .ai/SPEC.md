@@ -6,7 +6,11 @@
 - **주요 기능**:
     - **전체 화면 카메라**: 비율 유지(`cover`) 및 화면 꽉 채움.
     - **광각 카메라 지원**: 'wide', 'ultra' 등의 라벨을 가진 카메라 우선 활성화.
-    - **노이즈 탐지**: 빈 공간의 미세한 텍스처(분산)를 분석하여 타겟 설정.
+    - **노이즈 탐지 (Algorithm)**:
+        - **Grid Scan**: 32xN 그리드로 전체 화면 분석.
+        - **Scoring**: Edge 회피 + Texture 유인 + Perlin-like Noise.
+        - **Clustering**: Flood Fill을 이용한 동적 Bounding Box 계산.
+        - **State Machine**: Scanning <-> Locked (Hysteresis 적용).
     - **시각화 (Snap & Invert)**:
         - 감지된 위치로 즉시 이동 (보간 없음).
         - `mix-blend-mode: difference`를 이용한 자동 색상 반전.
