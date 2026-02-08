@@ -22,15 +22,15 @@ export default class Detector {
             maxGradient: 100,      // 엣지 기준 완화
 
             // 점수 가중치
-            baseScore: 50.0,       // 기본 점수 대폭 상향 (50)
-            attractionWeight: 1.5,
-            penaltyWeight: 1.0,    // 패널티 완화
-            noiseWeight: 20.0,     // 노이즈 대폭 상향
+            baseScore: 10.0,       // 기본 점수 하향 (정상화)
+            attractionWeight: 2.0, // 텍스처 가중치 상향 (특징 있는 곳 위주)
+            penaltyWeight: 2.0,    // 패널티 복구
+            noiseWeight: 30.0,     // 노이즈는 여전히 중요함
 
             // 상태 임계값
-            lockThreshold: 0.0,    // 임계값 제거 (무조건 잡힘)
-            clusterThreshold: 5.0,
-            hysteresis: 1.0
+            lockThreshold: 20.0,   // 임계값 복구 (아무거나 잡지 않도록)
+            clusterThreshold: 15.0,// 클러스터링 기준 점수 상향
+            hysteresis: 1.1
         };
     }
 
@@ -117,6 +117,7 @@ export default class Detector {
         // 3. Noise (탐색 유도)
         const noiseInput = (x * 0.1) + (y * 0.1) + (this.frameCounter * 0.05);
         const noiseVal = Math.sin(noiseInput * 10) * Math.cos(noiseInput * 23);
+        // 노이즈가 음수일 때도 점수를 깎아서 더 contrast를 줌
         score += noiseVal * this.params.noiseWeight;
 
         // 너무 어둡거나 밝으면 감점 로직 제거 (무조건 탐지)
@@ -144,16 +145,8 @@ export default class Detector {
                 // 새로운 강력한 타겟 등장 -> 교체
                 targetSeed = seedCell;
             } else {
-                // 기존 타겟 위치 유지 (단, 점수는 현재 프레임의 해당 위치 점수로 업데이트 필요)
-                // 하지만 '파르르' 떨리는 효과를 위해 매 프레임 재계산된 Bounding Box를 사용하는 것이 더 '날것' 같음.
-                // 따라서 Locked 상태여도 현재 프레임의 Max Score 위치를 기반으로 하되, 
-                // ID만 유지하는 전략으로 변경 (사용자 요구사항: "Bounding Box 크기에 맞춰 매 프레임 즉각적으로(Snap) 변해야 합니다")
-
-                // 다만 히스테리시스 때문에, 점수가 조금 낮아져도 기존 위치를 고수해야 하는데...
-                // 여기서는 "가장 점수가 높은 곳"이 바뀌지 않았다면 그곳을 사용.
-                // 만약 가장 점수가 높은 곳이 바뀌었는데 그 차이가 크지 않다면? 
-
-                // 단순화: Global Max가 짱임. 다만 ID 변경만 히스테리시스를 적용.
+                // 기존 위치 유지하려 노력하지만, 너무 멀어지면 놓아줌
+                // 여기서는 Global Max를 따라가도록 둠 (자연스러운 떨림)
             }
         }
 
@@ -164,6 +157,14 @@ export default class Detector {
 
         // 상태 전이
         if (cluster) {
+            // 너무 크면 무시 (화면 전체를 다 덮는 경우)
+            const clusterArea = (cluster.maxX - cluster.minX) * (cluster.maxY - cluster.minY);
+            const totalArea = gw * gh;
+            if (clusterArea > totalArea * 0.3) {
+                // 너무 큼 -> 노이즈로 간주하고 무시
+                return { state: 'SCANNING' };
+            }
+
             if (this.state === 'SCANNING') {
                 this.state = 'LOCKED';
                 this.objectCounter++;
@@ -179,15 +180,13 @@ export default class Detector {
                 w: (cluster.maxX - cluster.minX + 1) / gw,
                 h: (cluster.maxY - cluster.minY + 1) / gh,
                 id: `Object_${String(this.objectCounter).padStart(2, '0')}`,
-                state: this.state
+                state: this.state,
+                score: targetSeed.score
             };
 
         } else {
             // 타겟 없음
-            if (this.state === 'LOCKED') {
-                // 바로 풀지 말고, 잠시 유예를 둘 수도 있지만, 여기선 즉시 해제 (Snap)
-                this.state = 'SCANNING';
-            }
+            this.state = 'SCANNING';
             return { state: this.state };
         }
     }
@@ -203,13 +202,13 @@ export default class Detector {
         let minY = seed.y, maxY = seed.y;
 
         let count = 0;
-        const maxClusterSize = gw * gh * 0.5; // 화면 절반 이상은 무시 (너무 큼)
+        const maxClusterSize = gw * gh * 0.2; // 전체 화면의 20%까지만 허용
 
         while (queue.length > 0) {
             const { x, y } = queue.pop();
             count++;
 
-            if (count > maxClusterSize) break;
+            if (count > maxClusterSize) break; // 너무 커지면 중단
 
             if (x < minX) minX = x;
             if (x > maxX) maxX = x;
