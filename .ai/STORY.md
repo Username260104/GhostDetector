@@ -26,3 +26,8 @@
     - **Target Change**: `Gradient` 역전 -> 텍스처(무늬) 대신 **평평한 공간(벽지, 빈 곳)** 선호.
     - **Stability**: `LPF(Low Pass Filter)` 도입으로 부드러운 이동 (`lerpFactor: 0.1`).
     - **Stickiness**: `Spatial Memory` 도입 -> 한 번 찾은 위치 주변에 강력한 가산점 부여 (껌딱지 효과).
+- **[버그수정]** 탐지 로직 및 UI 개선
+    - **Blob Size**: 벽 전체를 잡는 문제 해결 -> 최대 클러스터 크기 40% -> 15% 축소.
+    - **ID Update**: 먼 거리 이동 시 ID 갱신 로직 추가 (`renewDistance: 0.3`).
+    - **Stickiness**: 위치 고정 강도 하향 (50.0 -> 30.0) 및 평평함 가중치 조절 (3.0 -> 2.0).
+    - **UI**: Double Debug Text 문제 해결 (Renderer 등 내장 텍스트 제거), 용어 통일 (Ghost -> Object).

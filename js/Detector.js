@@ -26,24 +26,27 @@ export default class Detector {
             // Gradient가 낮을수록 점수가 높아짐.
             // maxGradient보다 낮으면 가산점, 높으면 감점.
             maxGradient: 80,       // 이 값보다 변화량이 적으면 좋은 곳으로 판단
-            flatnessWeight: 3.0,   // 평평할수록 주는 가산점 가중치
+            flatnessWeight: 2.0,   // 평평할수록 주는 가산점 가중치 (3.0 -> 2.0 하향: 너무 민감하게 반응하지 않도록)
 
             // 2. 위치 고정 (Stickiness / Spatial Memory)
             // 한 번 찾은 위치 주변에 강력한 가산점을 줌.
             stickinessRadius: 5,   // 반경 5칸 이내에 가산점
-            stickinessWeight: 50.0,// 엄청난 가산점 (다른 곳으로 시선 안 돌리게)
+            stickinessWeight: 30.0,// (50.0 -> 30.0 하향: 이동 시 너무 끈적이지 않게)
 
             // 3. 노이즈 (Noise / Alive feel)
             // 아주 약간의 흔들림만 허용
-            noiseWeight: 5.0,      // 기존 30.0 -> 5.0 대폭 축소 (안정성 강화)
+            noiseWeight: 5.0,
 
             // 4. 임계값 (Thresholds)
             baseScore: 10.0,       // 기본 점수
-            lockThreshold: 60.0,   // 락 걸리는 기준 점수 (Stickiness 덕분에 한 번 걸리면 점수 뻥튀기됨)
+            lockThreshold: 60.0,   // 락 걸리는 기준 점수
             clusterThreshold: 30.0,// 클러스터링 기준 점수
 
             // 5. 움직임 보간 (LPF)
-            lerpFactor: 0.1        // 10%씩만 이동 (부드럽게, 끈적하게)
+            lerpFactor: 0.1,       // 10%씩만 이동 (부드럽게)
+
+            // 6. ID 갱신 거리 (화면 비율)
+            renewDistance: 0.3     // 한 번에 30% 이상 점프하면 새 물체로 간주
         };
     }
 
@@ -182,6 +185,13 @@ export default class Detector {
                 const targetW = (cluster.maxX - cluster.minX + 1) / gw;
                 const targetH = (cluster.maxY - cluster.minY + 1) / gh;
 
+                // ** ID 갱신 로직 추가 **
+                // 만약 현재 위치와 목표 위치가 너무 멀다면(순간이동), 새로운 물체로 간주하고 ID 갱신
+                const dist = Math.hypot(targetX - this.currentBlob.x, targetY - this.currentBlob.y);
+                if (dist > this.params.renewDistance) {
+                    this.objectCounter++;
+                }
+
                 const t = this.params.lerpFactor; // 0.1
 
                 // 위치 및 크기 보간 (선형 보간)
@@ -202,7 +212,7 @@ export default class Detector {
                 y: this.currentBlob.y,
                 w: this.currentBlob.w,
                 h: this.currentBlob.h,
-                id: `Ghost_${String(this.objectCounter).padStart(2, '0')}`,
+                id: `Object_${String(this.objectCounter).padStart(2, '0')}`, // Ghost -> Object
                 state: this.state,
                 score: seedCell.score
             };
@@ -230,7 +240,7 @@ export default class Detector {
         let minY = seed.y, maxY = seed.y;
 
         let count = 0;
-        const maxClusterSize = gw * gh * 0.4; // 화면의 40%까지 허용 (벽 전체가 잡힐 수도 있으니 좀 크게)
+        const maxClusterSize = gw * gh * 0.15; // 화면의 15%까지만 허용 (너무 큰 덩어리는 무시)
 
         while (queue.length > 0) {
             const { x, y } = queue.pop();

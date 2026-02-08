@@ -36,12 +36,9 @@ export default class Renderer {
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
 
-        // Debug Info (좌상단)
-        this.ctx.textAlign = 'left';
-        this.ctx.textBaseline = 'top';
-        this.ctx.font = `12px monospace`;
-        const info = result ? `State: ${result.state} | ID: ${result.id || 'N/A'}` : "No Result";
-        this.ctx.fillText(info, 10, 10);
+        // Debug Info (좌상단) - Main.js의 HTML 디버그와 겹치므로 제거
+        // const info = result ? `State: ${result.state} | ID: ${result.id || 'N/A'}` : "No Result";
+        // this.ctx.fillText(info, 10, 10);
 
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
