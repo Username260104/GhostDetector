@@ -22,8 +22,25 @@ export default class Renderer {
         this.ctx.textAlign = 'center'; // 요청: CENTER
         this.ctx.textBaseline = 'middle'; // 요청: CENTER
 
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'top';
+        this.ctx.fillStyle = '#00FF00';
+        this.ctx.font = `12px monospace`;
+
+        // Debug Info
+        const info = result ? `State: ${result.state} | ID: ${result.id || 'N/A'}` : "No Result";
+        this.ctx.fillText(info, 10, 10);
+
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = `${this.fontSize}px ${this.fontFamily}`;
+
         // 1. Scanning State
-        if (result.state === 'SCANNING') {
+        if (!result || result.state === 'SCANNING') {
+            // 아무것도 안 잡혀도 뭔가 작동 중임을 표시
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            this.ctx.fillText("SCANNING...", this.canvas.width / 2, this.canvas.height / 2);
             return;
         }
 

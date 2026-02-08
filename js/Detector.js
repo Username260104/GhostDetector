@@ -22,15 +22,15 @@ export default class Detector {
             maxGradient: 100,      // 엣지 기준 완화
 
             // 점수 가중치
-            baseScore: 20.0,       // 기본 점수 상향 (무조건 잡히게)
-            attractionWeight: 1.5, // 텍스처 가중치 상향
-            penaltyWeight: 2.0,    // 패널티 유지
-            noiseWeight: 10.0,     // 노이즈 영향력 증대 (탐색 강화)
+            baseScore: 50.0,       // 기본 점수 대폭 상향 (50)
+            attractionWeight: 1.5,
+            penaltyWeight: 1.0,    // 패널티 완화
+            noiseWeight: 20.0,     // 노이즈 대폭 상향
 
             // 상태 임계값
-            lockThreshold: 10.0,   // 진입 장벽 낮춤
-            clusterThreshold: 5.0, // 덩어리 형성 기준 대폭 낮춤
-            hysteresis: 1.05       // 민감하게 반응
+            lockThreshold: 0.0,    // 임계값 제거 (무조건 잡힘)
+            clusterThreshold: 5.0,
+            hysteresis: 1.0
         };
     }
 
@@ -119,10 +119,12 @@ export default class Detector {
         const noiseVal = Math.sin(noiseInput * 10) * Math.cos(noiseInput * 23);
         score += noiseVal * this.params.noiseWeight;
 
-        // 너무 어둡거나 밝으면 감점 (카메라 노이즈가 심한 영역 제외)
+        // 너무 어둡거나 밝으면 감점 로직 제거 (무조건 탐지)
+        /*
         if (brightness < 20 || brightness > 230) {
             score -= 20;
         }
+        */
 
         return score;
     }
