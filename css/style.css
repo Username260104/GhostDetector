@@ -8,6 +8,14 @@ body {
     background-color: #000;
 }
 
+#stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    isolation: isolate;
+    /* 블렌딩 격리 */
+}
+
 #camera-feed {
     position: absolute;
     top: 0;
@@ -15,7 +23,6 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* 화면 비율 유지하며 꽉 채움 (중앙 크롭 효과) */
     z-index: 1;
 }
 
@@ -27,7 +34,5 @@ body {
     height: 100%;
     z-index: 2;
     pointer-events: none;
-    /* 클릭 이벤트를 통과시킴 */
     mix-blend-mode: difference;
-    /* 배경색과 반전 효과 */
 }

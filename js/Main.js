@@ -58,9 +58,19 @@ class App {
     }
 
     onResize() {
-        // 캔버스 크기를 실제 화면 크기에 맞춤
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        // High DPI Support
+        const dpr = window.devicePixelRatio || 1;
+
+        // 1. Set Bitmap Size (Physical Pixels)
+        this.canvas.width = window.innerWidth * dpr;
+        this.canvas.height = window.innerHeight * dpr;
+
+        // 2. Set CSS Size (Logical Pixels)
+        this.canvas.style.width = `${window.innerWidth}px`;
+        this.canvas.style.height = `${window.innerHeight}px`;
+
+        // 3. Normalize Coordinate System
+        this.ctx.scale(dpr, dpr);
     }
 
     loop(timestamp) {
