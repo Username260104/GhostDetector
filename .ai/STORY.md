@@ -21,4 +21,8 @@
     - 기존: Canvas `globalCompositeOperation` 사용 -> 배경이 투명 캔버스라 비디오와 합성되지 않음.
     - 변경: HTML Video + CSS `mix-blend-mode: difference` 사용.
     - `Renderer.js`: 비디오 그리기 제거, 투명 배경 유지.
-    - `style.css`: `#camera-feed` 가시화, `#overlay` 블렌딩 모드 추가.
+    - `style.css`: `#camera-feed` 가시화, `#overlay` 블렌딩 모드 추가 -> 제거 (Canvas 내부 합성으로 변경).
+- **[리팩토링]** 감지 알고리즘 전면 수정 (Detector v2)
+    - **Target Change**: `Gradient` 역전 -> 텍스처(무늬) 대신 **평평한 공간(벽지, 빈 곳)** 선호.
+    - **Stability**: `LPF(Low Pass Filter)` 도입으로 부드러운 이동 (`lerpFactor: 0.1`).
+    - **Stickiness**: `Spatial Memory` 도입 -> 한 번 찾은 위치 주변에 강력한 가산점 부여 (껌딱지 효과).

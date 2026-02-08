@@ -6,11 +6,13 @@
 - **주요 기능**:
     - **전체 화면 카메라**: 비율 유지(`cover`) 및 화면 꽉 채움.
     - **광각 카메라 지원**: 'wide', 'ultra' 등의 라벨을 가진 카메라 우선 활성화.
-    - **노이즈 탐지 (Algorithm)**:
-        - **Grid Scan**: 32xN 그리드로 전체 화면 분석.
-        - **Scoring**: Edge 회피 + Texture 유인 + Perlin-like Noise.
+    - **노이즈 탐지 (Algorithm v2)**:
+        - **Target**: 평평하고 균일한 영역 (Low Gradient) 선호.
+        - **Scoring**: `MaxGradient - CurrentGradient` (역전).
+        - **Stability**: `Low Pass Filter (LPF)`로 위치 보간.
+        - **Stickiness**: `Spatial Memory`로 이전 위치 유지 성향 강화.
         - **Clustering**: Flood Fill을 이용한 동적 Bounding Box 계산.
-        - **State Machine**: Scanning <-> Locked (Hysteresis 적용).
+        - **State Machine**: Scanning <-> Locked.
     - **시각화 (Snap & Invert)**:
         - 감지된 위치로 즉시 이동 (보간 없음).
         - **CSS `mix-blend-mode: difference`**를 이용한 강력한 자동 색상 반전 (Video 위 Canvas 오버레이).
