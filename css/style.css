@@ -24,12 +24,8 @@ body {
     height: 100%;
     object-fit: cover;
     z-index: 0;
-    /* 캔버스(z-index: 2) 뒤에 숨지만, 
-       실제로는 Renderer가 비디오를 캔버스에 그리기 때문에
-       이 엘리먼트는 보이지 않아도 됨. 
-       하지만 display:none 하면 재생이 멈출 수 있으므로 
-       opacity: 0 처리하거나 z-index로 가림. */
-    visibility: hidden;
+    /* mix-blend-mode 적용을 위해 비디오가 실제로 보여야 함 */
+    visibility: visible;
 }
 
 #overlay {
@@ -41,5 +37,6 @@ body {
     z-index: 2;
     pointer-events: none;
     background-color: transparent;
-    /* mix-blend-mode 제거 (JS에서 처리) */
+    /* 배경(비디오)과의 차이값으로 렌더링 */
+    mix-blend-mode: difference;
 }

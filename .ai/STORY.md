@@ -17,3 +17,8 @@
     - State Machine 도입: Scanning vs Locked, Hysteresis로 타겟 안정성 확보
     - Clustering: Flood Fill 알고리즘으로 노이즈 영역의 Bounding Box 계산
     - 시각화: 선 두께 0.5px, 중앙 태그 배치, 적응형 대비(Difference Blend)
+- **[버그수정]** 렌더링 파이프라인 변경 (mix-blend-mode 적용 불가 이슈 해결)
+    - 기존: Canvas `globalCompositeOperation` 사용 -> 배경이 투명 캔버스라 비디오와 합성되지 않음.
+    - 변경: HTML Video + CSS `mix-blend-mode: difference` 사용.
+    - `Renderer.js`: 비디오 그리기 제거, 투명 배경 유지.
+    - `style.css`: `#camera-feed` 가시화, `#overlay` 블렌딩 모드 추가.

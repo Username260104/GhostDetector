@@ -13,7 +13,7 @@
         - **State Machine**: Scanning <-> Locked (Hysteresis 적용).
     - **시각화 (Snap & Invert)**:
         - 감지된 위치로 즉시 이동 (보간 없음).
-        - `mix-blend-mode: difference`를 이용한 자동 색상 반전.
+        - **CSS `mix-blend-mode: difference`**를 이용한 강력한 자동 색상 반전 (Video 위 Canvas 오버레이).
         - 타겟 ID ("Object_XX") 표시.
 
 ## 2. 데이터 구조 (Data Structure)
