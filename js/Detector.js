@@ -15,15 +15,22 @@ export default class Detector {
         this.lastBestScore = 0;
         this.frameCounter = 0;
 
-        // 파라미터 (튜닝 필요)
+        // 파라미터 튜닝
         this.params = {
-            edgeThreshold: 30,
-            attractionWeight: 1.0,
-            repulsionWeight: 2.0,
-            noiseWeight: 15.0,
-            lockThreshold: 40.0,
-            clusterThreshold: 30.0, // 클러스터 포함 기준 점수
-            hysteresis: 1.2
+            // Gradient(변화량) 기준
+            minGradient: 5,        // 이보다 낮으면 너무 매끈함 (무시)
+            maxGradient: 80,       // 이보다 높으면 엣지로 간주 (감점 또는 무시)
+
+            // 점수 가중치
+            baseScore: 10.0,       // 기본 점수 (일단 잡히게 하기 위함)
+            attractionWeight: 1.0, // Gradient 점수 가중치
+            penaltyWeight: 2.0,    // 너무 강한 엣지에 대한 패널티
+            noiseWeight: 5.0,      // 랜덤 노이즈 가중치
+
+            // 상태 임계값
+            lockThreshold: 15.0,   // 이 점수를 넘으면 Locked 후보 (낮춤)
+            clusterThreshold: 10.0,// 클러스터 포함 기준 점수 (낮춤)
+            hysteresis: 1.1        // 낮춤
         };
     }
 
@@ -74,34 +81,50 @@ export default class Detector {
         const b = data[idx + 2];
         const brightness = (r + g + b) / 3;
 
-        // Repulsion (Edge)
-        let edgeScore = 0;
+        // 1. Gradient 계산 (상하좌우 차이의 평균) -> 텍스처(질감) 측정
+        let gradient = 0;
+        let count = 0;
+
         if (x < w - 1) {
             const idxR = (y * w + (x + 1)) * 4;
-            edgeScore += Math.abs(brightness - (data[idxR] + data[idxR + 1] + data[idxR + 2]) / 3);
+            gradient += Math.abs(brightness - (data[idxR] + data[idxR + 1] + data[idxR + 2]) / 3);
+            count++;
         }
         if (y < h - 1) {
             const idxD = ((y + 1) * w + x) * 4;
-            edgeScore += Math.abs(brightness - (data[idxD] + data[idxD + 1] + data[idxD + 2]) / 3);
+            gradient += Math.abs(brightness - (data[idxD] + data[idxD + 1] + data[idxD + 2]) / 3);
+            count++;
         }
 
-        let repulsion = 0;
-        if (edgeScore > this.params.edgeThreshold) {
-            repulsion = edgeScore * this.params.repulsionWeight;
+        if (count > 0) gradient /= count;
+
+        // 2. 점수 계산 로직 변경
+        // 목표: "적당한 변화(Texture)"는 좋고, "너무 큰 변화(Edge)"나 "변화 없음(Flat)"은 싫음.
+
+        let score = this.params.baseScore; // 기본 점수 깔고 시작
+
+        if (gradient < this.params.minGradient) {
+            // 너무 매끈함 (벽지 빈 공간 등) -> 감점
+            score -= 5;
+        } else if (gradient < this.params.maxGradient) {
+            // 적당한 텍스처 (Attraction)
+            score += gradient * this.params.attractionWeight;
+        } else {
+            // 너무 강한 엣지 (Repulsion)
+            score -= (gradient - this.params.maxGradient) * this.params.penaltyWeight;
         }
 
-        // Attraction (Brightness Range)
-        let attraction = 0;
-        if (brightness > 20 && brightness < 230) {
-            attraction = 10;
-        }
-
-        // Noise
+        // 3. Noise (탐색 유도)
         const noiseInput = (x * 0.1) + (y * 0.1) + (this.frameCounter * 0.05);
         const noiseVal = Math.sin(noiseInput * 10) * Math.cos(noiseInput * 23);
-        const randomScore = noiseVal * this.params.noiseWeight;
+        score += noiseVal * this.params.noiseWeight;
 
-        return attraction - repulsion + randomScore;
+        // 너무 어둡거나 밝으면 감점 (카메라 노이즈가 심한 영역 제외)
+        if (brightness < 20 || brightness > 230) {
+            score -= 20;
+        }
+
+        return score;
     }
 
     updateState(seedCell, scoreMap, gw, gh) {
