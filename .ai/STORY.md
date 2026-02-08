@@ -31,3 +31,7 @@
     - **ID Update**: 먼 거리 이동 시 ID 갱신 로직 추가 (`renewDistance: 0.3`).
     - **Stickiness**: 위치 고정 강도 하향 (50.0 -> 30.0) 및 평평함 가중치 조절 (3.0 -> 2.0).
     - **UI**: Double Debug Text 문제 해결 (Renderer 등 내장 텍스트 제거), 용어 통일 (Ghost -> Object).
+- **[리팩토링]** 알고리즘 고도화 (Wall-Hugging 방지)
+    - **Edge Penalty**: 화면 가장자리로 갈수록 점수 대폭 삭감 (중앙 지향).
+    - **Aspect Ratio**: 가로세로 비율이 1:2 ~ 2:1을 벗어나면 클러스터 확장 중단 (기둥/틈새 방지).
+    - **Boredom System**: 한 곳에 오래 머물면 점수가 깎여 다른 곳으로 이동 유도 (Stickiness 상쇄).

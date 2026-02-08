@@ -15,6 +15,9 @@ export default class Detector {
         // 이전 프레임의 결과 저장 (Spatial Memory & LPF)
         this.lastBestCell = null;
 
+        // 지루함 (Boredom) 상태: 한 곳에 오래 머물면 점수가 깎임
+        this.boredom = 0;
+
         // 움직임 보간을 위한 현재 상태
         this.currentBlob = null; // { x, y, w, h }
 
@@ -31,7 +34,7 @@ export default class Detector {
             // 2. 위치 고정 (Stickiness / Spatial Memory)
             // 한 번 찾은 위치 주변에 강력한 가산점을 줌.
             stickinessRadius: 5,   // 반경 5칸 이내에 가산점
-            stickinessWeight: 30.0,// (50.0 -> 30.0 하향: 이동 시 너무 끈적이지 않게)
+            stickinessWeight: 20.0,// (30.0 -> 20.0 하향: Boredom과 시너지 효과를 위해 좀 더 유연하게)
 
             // 3. 노이즈 (Noise / Alive feel)
             // 아주 약간의 흔들림만 허용
@@ -46,7 +49,22 @@ export default class Detector {
             lerpFactor: 0.1,       // 10%씩만 이동 (부드럽게)
 
             // 6. ID 갱신 거리 (화면 비율)
-            renewDistance: 0.3     // 한 번에 30% 이상 점프하면 새 물체로 간주
+            renewDistance: 0.3,     // 한 번에 30% 이상 점프하면 새 물체로 간주
+
+            // 7. [NEW] 가장자리 페널티 (Edge Penalty)
+            // 화면 구석에 처박히는 것 방지 (0.0 ~ 1.0)
+            edgePenaltyWeight: 50.0,
+
+            // 8. [NEW] 비율 제한 (Aspect Ratio)
+            // 너무 길쭉한(벽 틈새 등) 형태 방지
+            minAspectRatio: 0.5, // 1:2
+            maxAspectRatio: 2.0, // 2:1
+
+            // 9. [NEW] 지루함 (Boredom)
+            // 움직이지 않으면 점수 감점 -> 다른 곳으로 튐
+            boredomInc: 1.0,       // 프레임당 증가량
+            boredomDec: 5.0,       // 움직임 발생 시 감소량
+            maxBoredom: 50.0       // 최대 감점
         };
     }
 
@@ -146,10 +164,30 @@ export default class Detector {
 
 
         // --- D. Noise (생동감) ---
-        // 너무 정적이면 재미없으므로 약간의 노이즈 추가
         const noiseInput = (x * 0.1) + (y * 0.1) + (this.frameCounter * 0.02);
-        const noiseVal = Math.sin(noiseInput * 5); // 주파수 낮춤 (천천히 변화)
+        const noiseVal = Math.sin(noiseInput * 5);
         score += noiseVal * this.params.noiseWeight;
+
+        // --- E. [NEW] Edge Penalty (가장자리 기피) ---
+        // 화면 중앙(0.5, 0.5)에서 멀어질수록 감점
+        const nx = x / w; // 0.0 ~ 1.0
+        const ny = y / h; // 0.0 ~ 1.0
+        const distFromCenterSq = (nx - 0.5) * (nx - 0.5) + (ny - 0.5) * (ny - 0.5); // 0.0 ~ 0.5 (approx)
+
+        // 거리가 멀수록 페널티 증가
+        // 최대 거리 제곱은 0.5*0.5 + 0.5*0.5 = 0.5
+        score -= distFromCenterSq * this.params.edgePenaltyWeight;
+
+
+        // --- F. [NEW] Boredom (지루함) ---
+        // 현재 상태가 LOCKED이고, 이 셀이 이전 위치 근처라면 지루함 적용
+        if (this.state === 'LOCKED' && lastCell) {
+            const dx = x - lastCell.x;
+            const dy = y - lastCell.y;
+            if (dx * dx + dy * dy < 25) { // 근처에 있으면
+                score -= this.boredom;
+            }
+        }
 
         return score;
     }
@@ -190,6 +228,7 @@ export default class Detector {
                 const dist = Math.hypot(targetX - this.currentBlob.x, targetY - this.currentBlob.y);
                 if (dist > this.params.renewDistance) {
                     this.objectCounter++;
+                    this.boredom = 0; // [NEW] 새로운 물체니 지루함 초기화
                 }
 
                 const t = this.params.lerpFactor; // 0.1
@@ -201,27 +240,35 @@ export default class Detector {
                 this.currentBlob.h = this.lerp(this.currentBlob.h, targetH, t);
             }
 
-            // 다음 프레임을 위해 중심점 기억 (정수 좌표로 변환하여 저장)
+            // 다음 프레임을 위해 중심점 기억
             this.lastBestCell = {
                 x: Math.floor((this.currentBlob.x + this.currentBlob.w / 2) * gw),
                 y: Math.floor((this.currentBlob.y + this.currentBlob.h / 2) * gh)
             };
+
+            // [NEW] Boredom Update
+            // 움직임이 적으면 지루함 증가, 크면 감소
+            // 이전 프레임 위치와의 거리 계산 (LPF 적용 전 RAW 타겟 기준이 더 정확할 수 있으나, 결과적 움직임인 currentBlob 기준)
+            // 여기서는 단순하게 매 프레임 증가시키고, 큰 점프로 ID가 바뀌면 초기화하는 방식 사용 권장,
+            // 또는 미세 움직임을 감지해야 함. 우선은 "계속 잡고 있으면" 증가하는 식으로 구현.
+            this.boredom += this.params.boredomInc;
+            if (this.boredom > this.params.maxBoredom) this.boredom = this.params.maxBoredom;
 
             return {
                 x: this.currentBlob.x,
                 y: this.currentBlob.y,
                 w: this.currentBlob.w,
                 h: this.currentBlob.h,
-                id: `Object_${String(this.objectCounter).padStart(2, '0')}`, // Ghost -> Object
+                id: `Object_${String(this.objectCounter).padStart(2, '0')}`,
                 state: this.state,
                 score: seedCell.score
             };
 
         } else {
             // 타겟 놓침
-            // 하지만 바로 SCANNING으로 가지 않고, 잠시 버티기 (Decay)
-            // 여기서는 단순화를 위해 바로 해제하지만, 
-            // Stickiness Weight가 높아서 점수가 서서히 떨어지므로 자연스럽게 버티게 됨.
+            // 지루함 초기화 (새로운 흥미거리 찾을 준비)
+            this.boredom = 0;
+
             this.state = 'SCANNING';
             this.lastBestCell = null;
             this.currentBlob = null;
@@ -251,6 +298,22 @@ export default class Detector {
             if (x > maxX) maxX = x;
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
+
+            // [NEW] Aspect Ratio Check (실시간)
+            // 현재까지의 너비와 높이 비율이 극단적이면 확장 중단
+            // 단, 너무 작을 때는 체크하지 않음 (3x3 이상일 때만)
+            const cw = maxX - minX + 1;
+            const ch = maxY - minY + 1;
+            if (cw > 3 && ch > 3) {
+                const ratio = cw / ch;
+                if (ratio < this.params.minAspectRatio || ratio > this.params.maxAspectRatio) {
+                    // 비율이 깨지면 이 픽셀은 포함시키되, 큐에는 넣지 않음 (성장 멈춤)
+                    // 또는 loop break? -> 여기서는 break하면 너무 일찍 멈출 수 있으므로 continue로 가지치기만 함.
+                    // 엄격하게 하려면 break가 맞지만, 모양이 이상하게 잘릴 수 있음.
+                    // 여기서는 continue로 "이 방향으로는 성장하지 않음" 처리
+                    continue;
+                }
+            }
 
             const neighbors = [
                 { x: x + 1, y: y }, { x: x - 1, y: y },

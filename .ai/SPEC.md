@@ -8,11 +8,14 @@
     - **광각 카메라 지원**: 'wide', 'ultra' 등의 라벨을 가진 카메라 우선 활성화.
     - **노이즈 탐지 (Algorithm v2)**:
         - **Target**: 평평하고 균일한 영역 (Low Gradient) 선호 (**FlatnessWeight: 2.0**).
-        - **Scoring**: `MaxGradient - CurrentGradient`.
+        - **Scoring**: `MaxGradient - CurrentGradient` + **Edge Penalty** (가장자리 회피) + **Boredom** (지루함).
         - **Stability**: `Low Pass Filter (LPF)`로 위치 보간.
-        - **Stickiness**: `Spatial Memory`로 이전 위치 유지 (과도한 고정 방지, **StickinessWeight: 30.0**).
-        - **ID Renewal**: 위치가 급격히 변하거나(화면의 30% 이상 이동) 놓치면 새로운 ID 부여.
-        - **Clustering**: Flood Fill (최대 크기 제한: **15%**).
+        - **Stickiness**: `Spatial Memory`로 이전 위치 유지 (과도한 고정 방지, **StickinessWeight: 20.0**).
+        - **ID Renewal**: 위치가 급격히 변하거나(**30%**) 지루함이 극에 달하면 새로운 ID 부여/이동.
+        - **Constraints**:
+            - **Max Size**: 화면의 15%.
+            - **Aspect Ratio**: 1:2 ~ 2:1 제한 (길쭉한 형태 방지).
+        - **Clustering**: Flood Fill + Aspect Ratio Check.
         - **State Machine**: Scanning <-> Locked.
     - **시각화 (Snap & Invert)**:
         - 감지된 위치로 부드럽게 이동 (LPF).
