@@ -25,7 +25,8 @@
         - **절차적 스켈레톤 (Procedural Skeleton)**:
             - MediaPipe Pose 33 Keypoints 토폴로지 사용.
             - 블롭 크기에 반응하되, 사람의 신체 비율(Aspect Ratio) 유지.
-            - 관절(Joints) + 뼈대(Bones) 연결 구조 렌더링.
+            - **Random Glitch**: 보간 없는 랜덤 노이즈/간격 업데이트로 기괴한 움직임(Uncanny Valley) 표현.
+
 
 
 ## 2. 데이터 구조 (Data Structure)

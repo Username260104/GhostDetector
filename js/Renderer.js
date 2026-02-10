@@ -78,10 +78,8 @@ export default class Renderer {
 
     drawSkeleton(cx, cy, boxW, boxH) {
         // 1. Scale Calculation (Aspect-Ratio Preserved)
-        // 박스 크기에 비례하되, 사람의 비율을 유지함.
-        // 기준: 박스의 긴 쪽을 기준으로 뼈대 크기 설정
         const baseSize = Math.max(boxW, boxH);
-        const skeletonHeight = baseSize * 0.9; // 박스 꽉 차게
+        const skeletonHeight = baseSize * 0.9;
         const headSize = skeletonHeight * 0.1;
         const shoulderWidth = skeletonHeight * 0.25;
         const hipWidth = skeletonHeight * 0.2;
@@ -89,10 +87,37 @@ export default class Renderer {
         const legLength = skeletonHeight * 0.45;
         const armLength = skeletonHeight * 0.35;
 
-        // 2. Keypoints Generation (Procedural)
-        // 시간 기반 노이즈로 "살아있는" 움직임 추가
-        const t = performance.now() * 0.002;
-        const noise = (offset) => Math.sin(t + offset) * (baseSize * 0.05);
+        // 2. Glitch Animation State
+        const now = performance.now();
+
+        // Initialize state if not exists
+        if (!this.animState) {
+            this.animState = {
+                lastUpdate: 0,
+                nextInterval: 0,
+                offsets: new Array(20).fill(0) // 20 joints * 1 dim (simplified) or separate x/y?
+                // actually we applied noise to x/y separately in previous code.
+                // easier to just store "seed" or pre-calculated offsets.
+            };
+        }
+
+        // Check time
+        if (now - this.animState.lastUpdate > this.animState.nextInterval) {
+            this.animState.lastUpdate = now;
+            // Random interval: 50ms ~ 250ms
+            this.animState.nextInterval = Math.random() * 200 + 50;
+
+            // Generate new random offsets for each joint slot
+            // Range: -5% ~ +5% of baseSize
+            const range = baseSize * 0.05;
+            this.animState.offsets = Array.from({ length: 30 }, () => (Math.random() - 0.5) * 2 * range);
+        }
+
+        const O = this.animState.offsets; // Short alias
+
+        // Helper to get offset for index
+        const nx = (i) => O[i];
+        const ny = (i) => O[i + 15]; // Using second half for Y
 
         // Center Spine
         const noseY = cy - skeletonHeight * 0.4;
@@ -101,37 +126,36 @@ export default class Renderer {
 
         const joints = {
             // Face
-            nose: { x: cx, y: noseY + noise(0) },
-            eyeL: { x: cx - headSize * 0.3, y: noseY - headSize * 0.3 + noise(1) },
-            eyeR: { x: cx + headSize * 0.3, y: noseY - headSize * 0.3 + noise(2) },
-            earL: { x: cx - headSize * 0.6, y: noseY + noise(3) },
-            earR: { x: cx + headSize * 0.6, y: noseY + noise(4) },
+            nose: { x: cx + nx(0), y: noseY + ny(0) },
+            eyeL: { x: cx - headSize * 0.3 + nx(1), y: noseY - headSize * 0.3 + ny(1) },
+            eyeR: { x: cx + headSize * 0.3 + nx(2), y: noseY - headSize * 0.3 + ny(2) },
+            earL: { x: cx - headSize * 0.6 + nx(3), y: noseY + ny(3) },
+            earR: { x: cx + headSize * 0.6 + nx(4), y: noseY + ny(4) },
 
             // Upper Body
-            shoulderL: { x: cx - shoulderWidth / 2, y: neckY + noise(5) },
-            shoulderR: { x: cx + shoulderWidth / 2, y: neckY + noise(6) },
+            shoulderL: { x: cx - shoulderWidth / 2 + nx(5), y: neckY + ny(5) },
+            shoulderR: { x: cx + shoulderWidth / 2 + nx(6), y: neckY + ny(6) },
 
             // Lower Body
-            hipL: { x: cx - hipWidth / 2, y: hipY + noise(7) },
-            hipR: { x: cx + hipWidth / 2, y: hipY + noise(8) },
+            hipL: { x: cx - hipWidth / 2 + nx(7), y: hipY + ny(7) },
+            hipR: { x: cx + hipWidth / 2 + nx(8), y: hipY + ny(8) },
         };
 
-        // Derived Limbs (Elbows, Wrists, Knees, Ankles)
-        // Arms (A-Pose / Relaxed)
-        joints.elbowL = { x: joints.shoulderL.x - armLength * 0.3, y: joints.shoulderL.y + armLength * 0.5 + noise(9) };
-        joints.elbowR = { x: joints.shoulderR.x + armLength * 0.3, y: joints.shoulderR.y + armLength * 0.5 + noise(10) };
-        joints.wristL = { x: joints.elbowL.x - armLength * 0.2, y: joints.elbowL.y + armLength * 0.5 + noise(11) };
-        joints.wristR = { x: joints.elbowR.x + armLength * 0.2, y: joints.elbowR.y + armLength * 0.5 + noise(12) };
+        // Derived Limbs with stored noise
+        joints.elbowL = { x: joints.shoulderL.x - armLength * 0.3 + nx(9), y: joints.shoulderL.y + armLength * 0.5 + ny(9) };
+        joints.elbowR = { x: joints.shoulderR.x + armLength * 0.3 + nx(10), y: joints.shoulderR.y + armLength * 0.5 + ny(10) };
+        joints.wristL = { x: joints.elbowL.x - armLength * 0.2 + nx(11), y: joints.elbowL.y + armLength * 0.5 + ny(11) };
+        joints.wristR = { x: joints.elbowR.x + armLength * 0.2 + nx(12), y: joints.elbowR.y + armLength * 0.5 + ny(12) };
 
         // Hand Tips
         joints.indexL = { x: joints.wristL.x, y: joints.wristL.y + headSize * 0.5 };
         joints.indexR = { x: joints.wristR.x, y: joints.wristR.y + headSize * 0.5 };
 
         // Legs (Standing)
-        joints.kneeL = { x: joints.hipL.x - baseSize * 0.02, y: joints.hipL.y + legLength * 0.5 + noise(13) };
-        joints.kneeR = { x: joints.hipR.x + baseSize * 0.02, y: joints.hipR.y + legLength * 0.5 + noise(14) };
-        joints.ankleL = { x: joints.kneeL.x, y: joints.kneeL.y + legLength * 0.5 + noise(15) };
-        joints.ankleR = { x: joints.kneeR.x, y: joints.kneeR.y + legLength * 0.5 + noise(16) };
+        joints.kneeL = { x: joints.hipL.x - baseSize * 0.02 + nx(13), y: joints.hipL.y + legLength * 0.5 + ny(13) };
+        joints.kneeR = { x: joints.hipR.x + baseSize * 0.02 + nx(14), y: joints.hipR.y + legLength * 0.5 + ny(14) };
+        joints.ankleL = { x: joints.kneeL.x + nx(14), y: joints.kneeL.y + legLength * 0.5 + ny(15) }; // Reusing nx(14) to fit array size 15 for X
+        joints.ankleR = { x: joints.kneeR.x + nx(0), y: joints.kneeR.y + legLength * 0.5 + ny(0) }; // Wrap around index
 
         // Feet
         joints.heelL = { x: joints.ankleL.x, y: joints.ankleL.y + headSize * 0.3 };

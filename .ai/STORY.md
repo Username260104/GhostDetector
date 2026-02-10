@@ -51,7 +51,8 @@
 - **[기능]** 절차적 스켈레톤 시각화 (Procedural Skeleton Visualization)
     - **MediaPipe Topology**: 33개 랜드마크(코, 눈, 귀, 어깨, 팔꿈치, 손목, 골반, 무릎, 발목 등)를 기반으로 한 스켈레톤 구현.
     - **Aspect-Ratio Preserved Scaling**: 블롭의 가로세로 비율에 왜곡되지 않고, 긴 변을 기준으로 비율을 유지하며 크기 조절.
-    - **Procedural Animation**: `performance.now()`를 활용한 미세한 노이즈로 "살아있는 듯한" 움직임 연출.
+    - **Random Glitch Animation**: 부드러운 보간 대신, 랜덤한 시간 간격(50~250ms)마다 노이즈가 섞인 위치로 순간 이동(Snap)하여 기괴한 '글리치' 효과 연출.
 - **[설정]** 배포 규칙 업데이트
     - **Branch**: 모든 푸시는 `master` 브랜치를 대상으로 수행.
+
 
