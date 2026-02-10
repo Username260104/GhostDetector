@@ -48,3 +48,10 @@
     - **Invert & Morphology**: 윤곽선을 피해 빈 공간을 찾고, **Closing(팽창->침식)** 연산으로 흩어진 공간을 단단한 덩어리로 병합.
     - **Centroid Tracking**: Bounding Box 중심 대신 **질량 중심**을 추적하여 더욱 안정적인 움직임 구현.
     - **Compatibility**: 내부 로직은 완전히 바뀌었으나 투명 박스 시각화(`Renderer.js`)는 그대로 유지.
+- **[기능]** 절차적 스켈레톤 시각화 (Procedural Skeleton Visualization)
+    - **MediaPipe Topology**: 33개 랜드마크(코, 눈, 귀, 어깨, 팔꿈치, 손목, 골반, 무릎, 발목 등)를 기반으로 한 스켈레톤 구현.
+    - **Aspect-Ratio Preserved Scaling**: 블롭의 가로세로 비율에 왜곡되지 않고, 긴 변을 기준으로 비율을 유지하며 크기 조절.
+    - **Procedural Animation**: `performance.now()`를 활용한 미세한 노이즈로 "살아있는 듯한" 움직임 연출.
+- **[설정]** 배포 규칙 업데이트
+    - **Branch**: 모든 푸시는 `master` 브랜치를 대상으로 수행.
+
