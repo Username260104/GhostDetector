@@ -6,19 +6,18 @@
 - **주요 기능**:
     - **전체 화면 카메라**: 비율 유지(`cover`) 및 화면 꽉 채움.
     - **광각 카메라 지원**: 'wide', 'ultra' 등의 라벨을 가진 카메라 우선 활성화.
-    - **노이즈 탐지 (Algorithm v3)**:
-        - **1단계: Grid Scoring**:
-            - 32px 단위 그리드 분석.
-            - **Variance (표준편차)**: 자글거림(노이즈)이 심할수록 가산점 (+).
-            - **EdgeStrength**: 뚜렷한 경계선이 있으면 대폭 감점 (-).
-            - `Score = (Variance * 1.5) - (Edge * 3.0)`
-        - **2단계: Binary Thresholding**:
-            - 임계값(15.0) 이상인 셀만 'Active'로 분류.
+    - **노이즈 탐지 (Edge-Based Void Detection Algorithm)**:
+        - **1단계: Sobel Edge Detection & Invert**:
+            - 32px 단위 그리드 다운샘플링.
+            - 가로/세로 밝기 변화량(Gradient) 계산 -> Edge 검출.
+            - **Invert**: Edge(0) / Void(1)로 이진화.
+        - **2단계: Morphology (Closing)**:
+            - **Dilation(팽창)** -> **Erosion(침식)** 과정을 통해 빈 공간의 홀(Line)을 메우고 덩어리화.
         - **3단계: CCL (Connected Component Labeling)**:
-            - Flood Fill 알고리즘으로 인접한 Active Cell 병합.
-        - **4단계: Bounding Box Fitting**:
-            - 병합된 덩어리의 Min/Max 좌표로 박스 생성.
-            - 크기(4~15%) 및 비율(0.2~5.0) 필터링.
+            - 인접한 Void Cell들을 하나의 Blob으로 병합.
+        - **4단계: Centroid Tracking**:
+            - 가장 넓은 Blob의 **무게 중심(Centroid)**을 타겟 좌표로 사용.
+            - 기존 Bounding Box 크기(W, h) 유지로 시각화 호환성 확보.
     - **시각화 (Snap & Invert)**:
         - 감지된 위치로 부드럽게 이동 (LPF).
         - **CSS `mix-blend-mode: difference`**를 이용한 강력한 자동 색상 반전.

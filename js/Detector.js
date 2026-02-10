@@ -10,14 +10,12 @@ export default class Detector {
 
         this.currentBlob = null; // { x, y, w, h }
         this.objectCounter = 1;
-        this.lastId = null;
     }
 
     detect(video) {
         if (video.readyState < 2) return null;
 
-        // 1. 그리드 크기 조정 (화면 비율에 맞춤)
-        const aspect = video.videoWidth / video.videoHeight;
+        // 1. 그리드 크기 조정
         const gw = Math.floor(video.videoWidth / Config.GRID.CELL_SIZE);
         const gh = Math.floor(video.videoHeight / Config.GRID.CELL_SIZE);
 
@@ -28,121 +26,146 @@ export default class Detector {
             this.gridH = gh;
         }
 
-        // 다운샘플링하여 그리기
+        // 다운샘플링
         this.ctx.drawImage(video, 0, 0, gw, gh);
         const frameData = this.ctx.getImageData(0, 0, gw, gh);
         const data = frameData.data;
 
-        // 2. 1단계: 그리드 점수화 (Grid Scoring)
-        const scoreMap = new Float32Array(gw * gh);
-        const activeMap = new Uint8Array(gw * gh); // 0: Inactive, 1: Active
+        // 2. Sobel Edge Detection & Invert
+        const binaryMap = this.applySobelAndInvert(data, gw, gh);
 
-        for (let y = 0; y < gh; y++) {
-            for (let x = 0; x < gw; x++) {
-                const score = this.calculateCellScore(data, gw, gh, x, y);
-                scoreMap[y * gw + x] = score;
+        // 3. Morphology (Closing: Dilation -> Erosion)
+        // 빈 공간(White)을 뭉쳐서 더 단단한 덩어리로 만듦
+        const dilatedMap = this.applyDilation(binaryMap, gw, gh);
+        const closedMap = this.applyErosion(dilatedMap, gw, gh);
 
-                // 3. 2단계: 이진화 (Binary Thresholding)
-                if (score > Config.SCORE.THRESHOLD) {
-                    activeMap[y * gw + x] = 1;
-                }
-            }
+        // 디버그용 (Config.DEBUG.SHOW_GRID가 true일 때 캔버스에 그리기 위함)
+        if (Config.DEBUG.SHOW_GRID) {
+            this.debugDraw(closedMap, gw, gh);
         }
 
-        // 4. 3단계: 연결 요소 병합 (Connected Component Labeling)
-        const blobs = this.findConnectedComponents(activeMap, gw, gh);
+        // 4. CCL (Connected Component Labeling)
+        const blobs = this.findConnectedComponents(closedMap, gw, gh);
 
-        // 5. 4단계: 바운딩 박스 피팅 (Bounding Box Fitting)
+        // 5. 가장 넓은 영역 선택
         const bestBlob = this.selectBestBlob(blobs, gw, gh);
 
-        // 6. 결과 보정 (Smoothing & ID Management)
+        // 6. 결과 처리 (Centroid 계산 및 시각화 데이터 생성)
         return this.processResult(bestBlob, gw, gh);
     }
 
-    calculateCellScore(data, w, h, x, y) {
-        const idx = (y * w + x) * 4;
+    applySobelAndInvert(data, w, h) {
+        const output = new Uint8Array(w * h); // 0: Edge, 1: Void
+        const threshold = Config.EDGE.THRESHOLD;
 
-        // A. Variance (표준편차) - 자글거림 계산
-        // 현재 픽셀과 주변 4방향 픽셀의 밝기 차이를 분산으로 근사
-        let sum = 0;
-        let sqSum = 0;
-        let count = 0;
+        // Sobel Kernels
+        // X: -1 0 1
+        //    -2 0 2
+        //    -1 0 1
+        // Y: -1 -2 -1
+        //     0  0  0
+        //     1  2  1
 
-        // 중심 픽셀
-        const centerVal = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-        sum += centerVal;
-        sqSum += centerVal * centerVal;
-        count++;
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                let gx = 0;
+                let gy = 0;
 
-        const neighbors = [
-            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-        ];
+                // 3x3 Window
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const idx = ((y + dy) * w + (x + dx)) * 4;
+                        // Grayscale approximation (R+G+B)/3
+                        const val = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
 
-        for (const n of neighbors) {
-            const nx = x + n.dx;
-            const ny = y + n.dy;
-            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-                const nIdx = (ny * w + nx) * 4;
-                const val = (data[nIdx] + data[nIdx + 1] + data[nIdx + 2]) / 3;
-                sum += val;
-                sqSum += val * val;
-                count++;
+                        // Sobel X
+                        if (dx !== 0) {
+                            const weight = (dy === 0) ? 2 : 1;
+                            gx += val * dx * weight;
+                        }
+
+                        // Sobel Y
+                        if (dy !== 0) {
+                            const weight = (dx === 0) ? 2 : 1;
+                            gy += val * dy * weight;
+                        }
+                    }
+                }
+
+                const magnitude = Math.abs(gx) + Math.abs(gy);
+
+                // Invert Logic: Edge(High Mag) -> 0, Flat(Low Mag) -> 1
+                if (magnitude < threshold) {
+                    output[y * w + x] = 1; // Void
+                } else {
+                    output[y * w + x] = 0; // Edge
+                }
             }
         }
+        return output;
+    }
 
-        const mean = sum / count;
-        const variance = (sqSum / count) - (mean * mean); // E[X^2] - (E[X])^2
-        const stdDev = Math.sqrt(Math.max(0, variance)); // 표준편차
-
-        // B. Edge Strength (경계선) - Sobel Filter 간략화
-        // 가로/세로 밝기 변화량의 합
-        let edgeStrength = 0;
-        if (x < w - 1) {
-            const rIdx = (y * w + (x + 1)) * 4;
-            const rVal = (data[rIdx] + data[rIdx + 1] + data[rIdx + 2]) / 3;
-            edgeStrength += Math.abs(centerVal - rVal);
+    applyDilation(map, w, h) {
+        const output = new Uint8Array(w * h);
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                if (map[y * w + x] === 1) {
+                    output[y * w + x] = 1;
+                    continue;
+                }
+                // 주변에 1이 하나라도 있으면 1로 만듦 (팽창 based on 4-connectivity)
+                if (map[(y - 1) * w + x] || map[(y + 1) * w + x] || map[y * w + (x - 1)] || map[y * w + (x + 1)]) {
+                    output[y * w + x] = 1;
+                }
+            }
         }
-        if (y < h - 1) {
-            const dIdx = ((y + 1) * w + x) * 4;
-            const dVal = (data[dIdx] + data[dIdx + 1] + data[dIdx + 2]) / 3;
-            edgeStrength += Math.abs(centerVal - dVal);
-        }
+        return output;
+    }
 
-        // C. 최종 점수 계산
-        // 공식: Score = (Variance * 1.5) - (EdgeStrength * 3.0)
-        return (stdDev * Config.SCORE.VARIANCE_WEIGHT) - (edgeStrength * Config.SCORE.EDGE_WEIGHT);
+    applyErosion(map, w, h) {
+        const output = new Uint8Array(w * h);
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                if (map[y * w + x] === 0) continue;
+
+                // 주변이 모두 1이어야 1 유지 (아니면 0으로 깎임)
+                if (map[(y - 1) * w + x] && map[(y + 1) * w + x] && map[y * w + (x - 1)] && map[y * w + (x + 1)]) {
+                    output[y * w + x] = 1;
+                } else {
+                    output[y * w + x] = 0;
+                }
+            }
+        }
+        return output;
     }
 
     findConnectedComponents(activeMap, w, h) {
         const visited = new Uint8Array(w * h);
         const blobs = [];
-        const labelMap = new Int32Array(w * h).fill(-1);
 
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
                 const idx = y * w + x;
                 if (activeMap[idx] === 1 && visited[idx] === 0) {
-                    // 새로운 덩어리 발견 -> Flood Fill 시작
                     const blob = {
+                        points: [], // 무게중심 계산을 위해 좌표 수집
                         minX: x, maxX: x,
                         minY: y, maxY: y,
                         count: 0
                     };
                     const queue = [{ x, y }];
                     visited[idx] = 1;
+                    blob.points.push({ x, y });
                     blob.count++;
 
                     while (queue.length > 0) {
                         const curr = queue.pop();
 
-                        // 바운딩 박스 갱신
                         if (curr.x < blob.minX) blob.minX = curr.x;
                         if (curr.x > blob.maxX) blob.maxX = curr.x;
                         if (curr.y < blob.minY) blob.minY = curr.y;
                         if (curr.y > blob.maxY) blob.maxY = curr.y;
 
-                        // 4방향 탐색
                         const dirs = [
                             { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
                             { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
@@ -157,12 +180,12 @@ export default class Detector {
                                 if (activeMap[nIdx] === 1 && visited[nIdx] === 0) {
                                     visited[nIdx] = 1;
                                     blob.count++;
+                                    blob.points.push({ x: nx, y: ny });
                                     queue.push({ x: nx, y: ny });
                                 }
                             }
                         }
                     }
-
                     blobs.push(blob);
                 }
             }
@@ -173,58 +196,66 @@ export default class Detector {
     selectBestBlob(blobs, gw, gh) {
         if (blobs.length === 0) return null;
 
-        // 필터링 및 점수(크기) 기반 정렬
         const validBlobs = blobs.filter(b => {
+            const size = b.count;
             const w = b.maxX - b.minX + 1;
             const h = b.maxY - b.minY + 1;
-            const size = b.count;
             const ratio = w / h;
 
-            // 1. 너무 작은 노이즈 제거
             if (size < Config.BLOB.MIN_CLUSTER_SIZE) return false;
-
-            // 2. 너무 큰 덩어리 제거 (화면 전체 덮는 경우)
             if (size > (gw * gh) * Config.BLOB.MAX_CLUSTER_SIZE) return false;
-
-            // 3. 비율 체크 (너무 길쭉한 것 제거)
-            if (ratio < Config.BLOB.MIN_ASPECT_RATIO || ratio > Config.BLOB.MAX_ASPECT_RATIO) return false;
+            //if (ratio < Config.BLOB.MIN_ASPECT_RATIO || ratio > Config.BLOB.MAX_ASPECT_RATIO) return false;
 
             return true;
         });
 
         if (validBlobs.length === 0) return null;
 
-        // 가장 큰 덩어리를 선택 (또는 중심에 가까운 것 등 로직 추가 가능)
+        // 가장 큰 덩어리 반환
         return validBlobs.reduce((prev, curr) => (prev.count > curr.count) ? prev : curr);
     }
 
     processResult(bestBlob, gw, gh) {
         if (!bestBlob) {
             this.currentBlob = null;
-            return { state: 'SCANNING' }; // 아무것도 못 찾음
+            return { state: 'SCANNING' };
         }
 
+        // 무게 중심(Centroid) 계산
+        let sumX = 0;
+        let sumY = 0;
+        for (const p of bestBlob.points) {
+            sumX += p.x;
+            sumY += p.y;
+        }
+        const centerX = sumX / bestBlob.count;
+        const centerY = sumY / bestBlob.count;
+
         // 정규화 좌표 (0.0 ~ 1.0)
-        const targetX = bestBlob.minX / gw;
-        const targetY = bestBlob.minY / gh;
-        const targetW = (bestBlob.maxX - bestBlob.minX + 1) / gw;
-        const targetH = (bestBlob.maxY - bestBlob.minY + 1) / gh;
+        let targetX = centerX / gw;
+        let targetY = centerY / gh;
+
+        // 크기도 박스 기준이 아니라 블롭 면적 기준으로 대략적 계산 (Visual)
+        // 기존 w, h는 박스 크기였음. 여기서는 박스 크기를 그대로 쓸지 고민.
+        // 유저 요청: "가장 넓은 흰색 영역의 중심점을 추적".
+        // 시각화 유지를 위해 기존 W/H 포맷 사용
+        let targetW = (bestBlob.maxX - bestBlob.minX + 1) / gw;
+        let targetH = (bestBlob.maxY - bestBlob.minY + 1) / gh;
 
         if (!this.currentBlob) {
-            // 처음 발견
             this.currentBlob = { x: targetX, y: targetY, w: targetW, h: targetH };
             this.objectCounter++;
         } else {
-            // 위치 보간 (LPF)
+            // LPF Smoothing
             const t = Config.BLOB.SMOOTHING;
             this.currentBlob.x += (targetX - this.currentBlob.x) * t;
             this.currentBlob.y += (targetY - this.currentBlob.y) * t;
             this.currentBlob.w += (targetW - this.currentBlob.w) * t;
             this.currentBlob.h += (targetH - this.currentBlob.h) * t;
 
-            // 거리가 멀어지면 ID 갱신 (선택 사항)
+            // 너무 멀면 ID 갱신
             const dist = Math.hypot(targetX - this.currentBlob.x, targetY - this.currentBlob.y);
-            if (dist > 0.3) { // 30% 이상 점프 시
+            if (dist > 0.4) {
                 this.objectCounter++;
             }
         }
@@ -236,7 +267,19 @@ export default class Detector {
             h: this.currentBlob.h,
             id: `Object_${String(this.objectCounter).padStart(2, '0')}`,
             state: 'LOCKED',
-            score: bestBlob.count // 점수 대신 픽셀 수 반환
+            score: bestBlob.count
         };
+    }
+
+    debugDraw(map, w, h) {
+        const imageData = this.ctx.createImageData(w, h);
+        for (let i = 0; i < w * h; i++) {
+            const val = map[i] * 255;
+            imageData.data[i * 4] = val;     // R
+            imageData.data[i * 4 + 1] = val; // G
+            imageData.data[i * 4 + 2] = val; // B
+            imageData.data[i * 4 + 3] = 255; // A
+        }
+        this.ctx.putImageData(imageData, 0, 0);
     }
 }

@@ -40,3 +40,11 @@
     - **점수 공식**: `(Variance * 1.5) - (Edge * 3.0)` -> 텍스처는 쫓고 선은 피함.
     - **파이프라인**: Scoring -> Thresholding -> CCL(Flood Fill) -> Bounding Box.
     - **설정 분리**: `Config.js` 도입으로 파라미터(가중치, 임계값, 크기 제한 등) 중앙 관리.
+
+## 2026-02-10
+- **[리팩토링]** Edge-Based Void Detection 알고리즘 교체 (Detector v4)
+    - **Concept**: 복잡한 텍스처 분석 폐기 -> **"빈 공간(Void)"**을 인식하는 직관적 로직으로 변경.
+    - **Sobel Edge Detection**: 밝기 변화량으로 윤곽선 검출 (`Threshold: 30`).
+    - **Invert & Morphology**: 윤곽선을 피해 빈 공간을 찾고, **Closing(팽창->침식)** 연산으로 흩어진 공간을 단단한 덩어리로 병합.
+    - **Centroid Tracking**: Bounding Box 중심 대신 **질량 중심**을 추적하여 더욱 안정적인 움직임 구현.
+    - **Compatibility**: 내부 로직은 완전히 바뀌었으나 투명 박스 시각화(`Renderer.js`)는 그대로 유지.
